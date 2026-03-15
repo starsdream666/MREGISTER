@@ -532,9 +532,21 @@ function renderApiKeys() {
 function populateSelectors() {
   const mailCredentials = state.credentials.filter((item) => item.kind === 'gptmail');
   const captchaCredentials = state.credentials.filter((item) => item.kind === 'yescaptcha');
-  setOptions(document.getElementById('email-select'), mailCredentials, tr('use_default_gptmail'));
-  setOptions(document.getElementById('captcha-select'), captchaCredentials, tr('use_default_yescaptcha'));
-  setOptions(document.getElementById('proxy-select'), state.proxies, tr('choose_proxy'));
+  const emailSelect = document.getElementById('email-select');
+  const captchaSelect = document.getElementById('captcha-select');
+  const proxySelect = document.getElementById('proxy-select');
+
+  const selectedEmailId = emailSelect ? emailSelect.value : '';
+  const selectedCaptchaId = captchaSelect ? captchaSelect.value : '';
+  const selectedProxyId = proxySelect ? proxySelect.value : '';
+
+  const nextEmailId = mailCredentials.some((item) => String(item.id) === selectedEmailId) ? selectedEmailId : '';
+  const nextCaptchaId = captchaCredentials.some((item) => String(item.id) === selectedCaptchaId) ? selectedCaptchaId : '';
+  const nextProxyId = state.proxies.some((item) => String(item.id) === selectedProxyId) ? selectedProxyId : '';
+
+  setOptions(emailSelect, mailCredentials, tr('use_default_gptmail'), nextEmailId);
+  setOptions(captchaSelect, captchaCredentials, tr('use_default_yescaptcha'), nextCaptchaId);
+  setOptions(proxySelect, state.proxies, tr('choose_proxy'), nextProxyId);
 }
 
 async function refreshState() {
