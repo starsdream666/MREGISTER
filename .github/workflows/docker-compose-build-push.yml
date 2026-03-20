@@ -40,7 +40,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .  # Dockerfile 所在目录（当前目录）
+          context: .
+          file: web_console/Dockerfile
           push: true  # 推送镜像到 Docker Hub
           tags: ${{ steps.meta.outputs.tags }}  # 使用步骤 4 生成的标签
           labels: ${{ steps.meta.outputs.labels }}  # 附加元数据标签
