@@ -42,7 +42,7 @@ def _realistic_email_prefix() -> str:
     return f"{f}.{middle}.{l}.{tail}"
 
 
-def get_email_and_code_fetcher(proxies: Any = None):
+def get_email_and_code_fetcher(proxies: Any = None, resend_callback: Any = None):
     base_url = os.environ.get("GPTMAIL_BASE_URL", "https://mail.chatgpt.org.uk")
     api_key = os.environ.get("GPTMAIL_API_KEY", "").strip()
     timeout = float(os.environ.get("GPTMAIL_TIMEOUT", "30") or 30)
@@ -58,6 +58,8 @@ def get_email_and_code_fetcher(proxies: Any = None):
         start = time.monotonic()
         seen: set[str] = set()
         attempt = 0
+        consecutive_empty_polls = 0
+        resend_triggered = False
         while time.monotonic() - start < timeout_sec:
             attempt += 1
             try:
@@ -66,6 +68,18 @@ def get_email_and_code_fetcher(proxies: Any = None):
             except GPTMailAPIError as e:
                 print(f"[otp] list_emails error: {e}")
                 summaries = []
+            if summaries:
+                consecutive_empty_polls = 0
+            else:
+                consecutive_empty_polls += 1
+                if resend_callback is not None and not resend_triggered and consecutive_empty_polls >= 3:
+                    print(f"[otp] got 0 emails for {consecutive_empty_polls} consecutive polls, resending OTP")
+                    try:
+                        resend_callback()
+                    except Exception as e:
+                        print(f"[otp] resend error: {e}")
+                    resend_triggered = True
+                    consecutive_empty_polls = 0
             for summary in summaries:
                 # 优先从 summary 的 subject/内容抓验证码
                 subj = str(summary.get("subject") or "")
@@ -139,6 +153,30 @@ def _extract_email_id(summary: dict[str, Any]) -> str | None:
         s = str(v).strip()
         if s: return s
     return None
+
+
+def trigger_email_otp_send(session: requests.Session, *, reason: str = "initial") -> bool:
+    send_headers = {
+        "referer": "https://auth.openai.com/create-account/password",
+        "accept": "application/json",
+        "content-type": "application/json",
+    }
+    try:
+        send_resp = session.get(
+            "https://auth.openai.com/api/accounts/email-otp/send",
+            headers=send_headers,
+            timeout=15,
+        )
+        print(f"[*] trigger send otp ({reason}) status: {send_resp.status_code}")
+        if send_resp.status_code != 200:
+            try:
+                print(send_resp.text)
+            except Exception:
+                pass
+        return send_resp.status_code == 200
+    except Exception as e:
+        print(f"[Warn] trigger send otp ({reason}) error: {e}")
+        return False
 
 # ========== OAuth helpers ==========
 
@@ -378,7 +416,10 @@ def run(proxy: Optional[str]) -> Optional[tuple[str, str, str]]:
     print(f"[*] 请求头 UA: {s.headers.get('user-agent')}")
 
     try:
-        email, password, code_fetcher = get_email_and_code_fetcher(proxies)
+        email, password, code_fetcher = get_email_and_code_fetcher(
+            proxies,
+            resend_callback=lambda: trigger_email_otp_send(s, reason="auto-resend"),
+        )
         if not email or not code_fetcher:
             return None
         print(f"[*] 成功获取 GPTMail 邮箱: {email}")
@@ -470,26 +511,7 @@ def run(proxy: Optional[str]) -> Optional[tuple[str, str, str]]:
                 pass
             return None
 
-        # 触发发送验证码（采用 send 而非 resend）
-        try:
-            send_headers = {
-                "referer": "https://auth.openai.com/create-account/password",
-                "accept": "application/json",
-                "content-type": "application/json",
-            }
-            send_resp = s.get(
-                "https://auth.openai.com/api/accounts/email-otp/send",
-                headers=send_headers,
-                timeout=15,
-            )
-            print(f"[*] 触发发送验证码状态: {send_resp.status_code}")
-            if send_resp.status_code != 200:
-                try:
-                    print(send_resp.text)
-                except Exception:
-                    pass
-        except Exception as e:
-            print(f"[Warn] send 调用异常: {e}")
+        trigger_email_otp_send(s, reason="initial")
 
         code = code_fetcher()
         if not code:

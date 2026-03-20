@@ -1,447 +1,317 @@
-# MREGISTER Web Console
+# MREGISTER 控制台说明
 
-- [English](#english)
-- [中文](#中文)
-- [快速跳转目录](#快速跳转目录)
+`MREGISTER` 是一个基于 FastAPI 的控制台，用来统一管理 `openai-register` 和 `grok-register` 两个注册脚本。它把原本偏命令行的执行方式包装成可持久化、可排队、可下载结果、可通过 API 调用的任务系统。
 
-## 快速跳转目录
+本文档只保留中文，并重点说明：
 
-### English
+- 如何部署
+- 数据如何持久化
+- 如何创建并调用 API
+- 任务结果如何查询和下载
 
-- [Project Layout](#project-layout)
-- [Current Behavior](#current-behavior)
-- [Authentication](#authentication)
-- [Language Support](#language-support)
-- [External API](#external-api)
-- [Quick Start](#quick-start)
-- [Docker Persistence](#docker-persistence)
-- [Favicon](#favicon)
-- [Security Notes](#security-notes)
-- [Notes About the Workers](#notes-about-the-workers)
-- [Suggested Next Improvements](#suggested-next-improvements)
-
-### 中文
+## 目录
 
 - [项目结构](#项目结构)
-- [当前行为](#当前行为)
-- [登录认证](#登录认证)
-- [语言支持](#语言支持)
-- [外部 API](#外部-api)
-- [快速启动](#快速启动)
-- [Docker 持久化](#docker-持久化)
-- [Favicon](#favicon-1)
-- [安全说明](#安全说明)
-- [注册脚本说明](#注册脚本说明)
-- [后续建议](#后续建议)
-
-## English
-
-`MREGISTER` is a lightweight web console that wraps the existing `openai-register` and `grok-register` Python workers into isolated, persistent tasks.
-
-The web UI supports:
-
-- Password-protected access
-- Task creation, queueing, stop, download, and delete
-- Independent task work directories and console logs
-- Credential management for GPTMail and YesCaptcha
-- Proxy management and default proxy selection
-- Daily scheduled task creation
-- API key management and external task API
-- SQLite persistence across restarts
-- Automatic UI language selection based on browser language
-- Docker and `docker compose` deployment
-
-## Project Layout
-
-- `web_console/`
-  - FastAPI web console
-  - SQLite runtime database
-  - static assets, templates, and Dockerfile
-- `openai-register/`
-  - OpenAI registration worker
-- `grok-register/`
-  - Grok registration worker
-
-## Current Behavior
-
-### Task model
-
-Each created task is independent:
-
-- Own runtime directory
-- Own `console.log`
-- Own result files
-- Own downloadable zip archive
-
-When a task finishes, you can:
-
-- Open task detail
-- Download the zip archive
-- Delete the task record and files
-
-### Real completion counting
-
-Task quantity means real successful output count, not "attempt count".
-
-The supervisor watches task output files and stops the worker only after the real completed count reaches the requested target quantity.
-
-### Persistence
-
-The web console stores persistent data in:
-
-- Database: `web_console/runtime/app.db`
-- Task files: `web_console/runtime/tasks/`
-
-As long as `web_console/runtime/` is preserved, data will survive:
-
-- service restarts
-- container restarts
-- machine reboots
-- container rebuilds
-
-## Authentication
-
-The home page is protected by an admin password.
-
-On first visit:
-
-- the site shows a setup page
-- you set the admin password
-- the password is stored as a hash, not plaintext
-
-After setup:
-
-- every visit requires login
-- the session uses an `HttpOnly` cookie
-
-## Language Support
-
-The UI supports:
-
-- Simplified Chinese
-- English
-
-Language selection is automatic:
-
-- if the browser prefers Chinese, the UI uses Chinese
-- if the browser prefers English, the UI uses English
-
-No manual language switcher is required right now.
-
-## External API
-
-The console exposes an external API for creating and querying tasks with an API key.
-
-Current API flow:
-
-1. Create an API key in the web UI
-2. Call the external task creation endpoint
-3. Query task status and completed count
-4. Download the zip archive after the task finishes
-
-API-created tasks support automatic cleanup:
-
-- the task is deleted 24 hours after completion
-
-## Quick Start
-
-### Local Python
-
-```bash
-cd register-main
-python -m pip install -r web_console/requirements.txt
-uvicorn web_console.app:app --host 0.0.0.0 --port 8000
-```
-
-Open:
-
-```text
-http://localhost:8000
-```
-
-### Docker Compose
-
-```bash
-cd register-main
-docker compose up -d --build
-```
-
-This setup builds the image locally from:
-
-- build context: `.`
-- Dockerfile: `web_console/Dockerfile`
-
-## Docker Persistence
-
-`docker-compose.yml` mounts the runtime directory to the host:
-
-- host: `./web_console/runtime`
-- container: `/app/web_console/runtime`
-
-This is what keeps:
-
-- SQLite data
-- task outputs
-- generated zip files
-
-after container recreation.
-
-## Favicon
-
-To use your own site icon, place the file here:
-
-```text
-web_console/static/favicon.ico
-```
-
-The template already references:
-
-```text
-/static/favicon.ico
-```
-
-After replacing the icon, restart the service or rebuild the container if needed.
-
-## Security Notes
-
-Current security model is suitable for private deployment, but there are still limits:
-
-- credentials are stored in SQLite
-- there is no per-user permission system
-- there is no rate limit on login attempts yet
-
-If you plan to expose this publicly, you should at least add:
-
-- HTTPS
-- reverse proxy
-- login rate limiting
-- credential encryption
-
-## Notes About the Workers
-
-### `openai-register`
-
-- Works well as a task-based worker
-- Supports task-specific output directories
-- Completion is controlled by the web supervisor
-
-### `grok-register`
-
-- Originally more interactive
-- The web supervisor wraps it into the task model
-- Completion is still based on real successful output count
-
-## Suggested Next Improvements
-
-- Change admin password in UI
-- Backup and restore database
-- Proxy pool rotation
-- Login attempt throttling
-- Optional manual language switcher
-
----
-
-## 中文
-
-`MREGISTER` 是一个轻量级 Web 控制台，用来把现有的 `openai-register` 和 `grok-register` Python 脚本封装成可持久化、可管理的独立任务。
-
-当前 Web 控制台支持：
-
-- 管理员密码保护
-- 任务创建、排队、停止、下载、删除
-- 每个任务独立工作目录和独立控制台日志
-- GPTMail 与 YesCaptcha 凭据管理
-- 代理管理与默认代理设置
-- 每日定时任务
-- API Key 管理与外部任务 API
-- SQLite 持久化存储
-- 按浏览器语言自动切换中英文界面
-- Docker 与 `docker compose` 部署
+- [核心能力](#核心能力)
+- [部署前准备](#部署前准备)
+- [本地部署](#本地部署)
+- [Docker Compose 部署](#docker-compose-部署)
+- [持久化与目录说明](#持久化与目录说明)
+- [首次登录与基础配置](#首次登录与基础配置)
+- [API 调用流程](#api-调用流程)
+- [外部 API 说明](#外部-api-说明)
+- [常见部署建议](#常见部署建议)
 
 ## 项目结构
 
 - `web_console/`
-  - FastAPI Web 控制台
+  - FastAPI 控制台
+  - 前端静态资源与模板
   - SQLite 运行时数据库
-  - 静态资源、模板和 Dockerfile
+  - Dockerfile
 - `openai-register/`
   - OpenAI 注册脚本
 - `grok-register/`
   - Grok 注册脚本
+- `docker-compose.yml`
+  - 容器化部署配置
 
-## 当前行为
+## 核心能力
 
-### 任务模型
+- 管理员密码登录
+- 创建任务、排队执行、停止任务
+- 查看实时日志与历史日志
+- 下载任务结果压缩包
+- 管理 GPTMail、YesCaptcha、代理
+- 定时任务
+- 通过 API Key 调用外部任务接口
+- SQLite 持久化保存配置与任务记录
 
-每个任务都是独立的：
+## 部署前准备
 
-- 独立任务目录
-- 独立 `console.log`
-- 独立结果文件
-- 独立下载压缩包
+建议先确认以下条件：
 
-任务完成后，你可以：
+- 已安装 Python 3.12 或 Docker / Docker Compose
+- 服务器可以访问外部网络
+- 已准备好 GPTMail API Key
+- 如需 `grok-register`，准备好 YesCaptcha Key
+- 如需代理，提前确认代理出口可用
 
-- 打开任务详情
-- 下载结果压缩包
-- 删除任务记录和文件
+如果你准备长期运行，建议直接使用 Docker Compose 部署，这样更稳定，也更容易保留运行数据。
 
-### 真实完成数量
+## 本地部署
 
-任务数量表示真实成功数量，不是“尝试次数”。
-
-调度器会监控结果文件，只有当真实完成数量达到目标值时，才会结束任务。
-
-### 持久化
-
-Web 控制台把数据保存到：
-
-- 数据库：`web_console/runtime/app.db`
-- 任务文件：`web_console/runtime/tasks/`
-
-只要 `web_console/runtime/` 目录没有被删除，下面这些情况都不会丢数据：
-
-- 服务重启
-- 容器重启
-- 机器重启
-- 容器重新构建
-
-## 登录认证
-
-首页受管理员密码保护。
-
-首次打开时：
-
-- 页面会先进入初始化密码页
-- 你设置管理员密码
-- 密码只会保存哈希，不保存明文
-
-完成初始化后：
-
-- 每次访问都需要登录
-- 会话使用 `HttpOnly` Cookie
-
-## 语言支持
-
-当前界面支持：
-
-- 简体中文
-- English
-
-语言选择是自动的：
-
-- 浏览器偏好中文时，界面显示中文
-- 浏览器偏好英文时，界面显示英文
-
-目前还没有单独的手动语言切换器。
-
-## 外部 API
-
-控制台提供了外部 API，可以通过 API Key 创建和查询任务。
-
-当前 API 流程：
-
-1. 在 Web 页面创建 API Key
-2. 调用外部任务创建接口
-3. 查询任务状态和已完成数量
-4. 任务完成后下载压缩包
-
-API 创建的任务支持自动清理：
-
-- 任务完成 24 小时后自动删除
-
-## 快速启动
-
-### 本地 Python 启动
+### 1. 安装依赖
 
 ```bash
-cd register-main
 python -m pip install -r web_console/requirements.txt
+```
+
+### 2. 启动控制台
+
+```bash
 uvicorn web_console.app:app --host 0.0.0.0 --port 8000
 ```
 
-打开：
+### 3. 打开页面
 
 ```text
-http://localhost:8000
+http://服务器IP:8000
 ```
 
-### Docker Compose 启动
+首次打开会进入初始化页面，需要先设置管理员密码。
+
+## Docker Compose 部署
+
+当前仓库已经带好了 `docker-compose.yml`，可直接使用。
+
+### 1. 启动
 
 ```bash
-cd register-main
 docker compose up -d --build
 ```
 
-当前 Compose 会在本地构建镜像：
+### 2. 查看状态
 
-- build context：`.`
-- Dockerfile：`web_console/Dockerfile`
+```bash
+docker compose ps
+```
 
-## Docker 持久化
+### 3. 查看日志
 
-`docker-compose.yml` 已经把运行时目录挂载到宿主机：
+```bash
+docker compose logs -f
+```
+
+### 4. 访问控制台
+
+```text
+http://服务器IP:8000
+```
+
+### 5. 停止服务
+
+```bash
+docker compose down
+```
+
+说明：
+
+- 镜像构建上下文是当前项目根目录 `.`
+- Dockerfile 路径是 `web_console/Dockerfile`
+- 容器默认监听 `8000` 端口
+
+## 持久化与目录说明
+
+控制台的关键数据保存在：
+
+- 数据库：`web_console/runtime/app.db`
+- 任务目录：`web_console/runtime/tasks/`
+
+`docker-compose.yml` 已经把运行目录挂载到宿主机：
 
 - 宿主机：`./web_console/runtime`
 - 容器内：`/app/web_console/runtime`
 
-因此下面这些内容都会保留：
+这意味着只要 `web_console/runtime/` 没被删除，下面这些内容都会保留：
 
-- SQLite 数据
-- 任务输出文件
-- 生成的压缩包
+- 管理员密码哈希
+- 凭据配置
+- 代理配置
+- API Key
+- 任务记录
+- `console.log`
+- 输出文件
+- 压缩包下载文件
 
-即使容器被重建也不会丢失。
+## 首次登录与基础配置
 
-## Favicon
+部署完成后，建议按下面顺序配置：
 
-如果你要替换站点图标，把文件放到这里：
+1. 首次打开页面，设置管理员密码
+2. 进入“凭据”页面，新增 GPTMail 凭据
+3. 如需 `grok-register`，再新增 YesCaptcha 凭据
+4. 如需固定出口，进入“代理”页面新增代理并可设置默认代理
+5. 进入“API”页面创建一个 API Key
+6. 再去“接口文档”页面复制调用示例
+
+如果你只打算通过 API 调用任务，最少要完成下面两步：
+
+- 设置管理员密码
+- 创建默认 GPTMail 凭据，并生成 API Key
+
+## API 调用流程
+
+推荐的调用流程如下：
+
+1. 在控制台里创建 API Key
+2. 调用 `POST /api/external/tasks` 创建任务
+3. 轮询 `GET /api/external/tasks/{task_id}` 查询任务进度
+4. 等任务完成后，再调用 `GET /api/external/tasks/{task_id}/download` 下载结果
+
+对于 API 创建的任务：
+
+- `completed_count` 表示真实成功数，不是尝试次数
+- `download_url` 只有在任务完成并生成压缩包后才会出现
+- API 创建的任务会在完成 24 小时后自动清理
+
+## 外部 API 说明
+
+### 鉴权方式
+
+请求头必须带：
 
 ```text
-web_console/static/favicon.ico
+Authorization: Bearer YOUR_API_KEY
 ```
 
-模板已经引用了：
+### 1. 创建任务
 
-```text
-/static/favicon.ico
+请求：
+
+```http
+POST /api/external/tasks
+Content-Type: application/json
+Authorization: Bearer YOUR_API_KEY
 ```
 
-替换后如果浏览器没有立即更新，重启服务或重新构建容器即可。
+请求体示例：
 
-## 安全说明
+```json
+{
+  "platform": "openai-register",
+  "quantity": 10,
+  "use_proxy": true,
+  "concurrency": 1,
+  "name": "openai-batch-01"
+}
+```
 
-当前安全模型适合私有部署，但仍然有边界：
+字段说明：
 
-- 凭据目前保存在 SQLite
-- 还没有多用户权限系统
-- 还没有登录限流
+- `platform`：任务平台，当前支持 `openai-register`、`grok-register`
+- `quantity`：目标成功数量
+- `use_proxy`：是否使用默认代理，`true` 表示使用，`false` 表示不使用
+- `concurrency`：并发数，默认 `1`
+- `name`：任务名称，可不传
 
-如果你准备公网部署，至少建议补这些：
+`curl` 示例：
 
-- HTTPS
-- 反向代理
-- 登录限流
-- 凭据加密
+```bash
+curl -X POST "http://127.0.0.1:8000/api/external/tasks" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"platform\":\"openai-register\",\"quantity\":10,\"use_proxy\":true,\"concurrency\":1,\"name\":\"openai-batch-01\"}"
+```
 
-## 注册脚本说明
+返回示例：
 
-### `openai-register`
+```json
+{
+  "task_id": 12,
+  "status": "queued",
+  "target_quantity": 10,
+  "completed_count": 0,
+  "auto_delete_at": "2026-03-21 12:00:00",
+  "download_url": null
+}
+```
 
-- 更适合任务化封装
-- 支持任务专属输出目录
-- 完成条件由 Web 调度器控制
+### 2. 查询任务状态
 
-### `grok-register`
+请求：
 
-- 原始脚本更偏交互式
-- Web 调度器已经把它包装进任务模型
-- 同样按真实成功数量判断完成
+```http
+GET /api/external/tasks/{task_id}
+Authorization: Bearer YOUR_API_KEY
+```
 
-## 后续建议
+`curl` 示例：
 
-- 在 UI 中支持修改管理员密码
-- 增加数据库备份与恢复
-- 增加代理池轮换
-- 增加登录失败限流
-- 增加手动语言切换器
+```bash
+curl "http://127.0.0.1:8000/api/external/tasks/12" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+返回示例：
+
+```json
+{
+  "task_id": 12,
+  "status": "running",
+  "completed_count": 4,
+  "target_quantity": 10,
+  "auto_delete_at": "2026-03-21 12:00:00",
+  "download_url": null
+}
+```
+
+状态通常包括：
+
+- `queued`
+- `running`
+- `stopping`
+- `completed`
+- `partial`
+- `failed`
+- `stopped`
+- `interrupted`
+
+### 3. 下载结果压缩包
+
+请求：
+
+```http
+GET /api/external/tasks/{task_id}/download
+Authorization: Bearer YOUR_API_KEY
+```
+
+`curl` 示例：
+
+```bash
+curl -L "http://127.0.0.1:8000/api/external/tasks/12/download" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -o result.zip
+```
+
+只有在任务完成且压缩包已生成时，这个接口才可以正常下载。
+
+## 常见部署建议
+
+如果你准备正式长期使用，建议至少做下面这些事：
+
+- 在外层加 Nginx / Caddy 反向代理
+- 配置 HTTPS
+- 只开放必要端口
+- 定期备份 `web_console/runtime/`
+- 不要把控制台直接裸露到公网上
+- 如果是远程服务器，给 Docker 设置自动重启
+
+如果你后面要把这个服务对接到自己的程序，建议调用方式固定为：
+
+1. 你的程序只保管 API Key
+2. 只调用外部 API，不直接操作数据库
+3. 用轮询查询进度
+4. 完成后立即下载压缩包并转存
+
+这样后续迁移、扩容和替换部署方式都会更容易。

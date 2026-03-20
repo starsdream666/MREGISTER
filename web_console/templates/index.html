@@ -408,6 +408,7 @@
           <div>
             <p class="eyebrow">{{ t.nav_task_detail }}</p>
             <h2>{{ t.section_task_detail }}</h2>
+            <p class="subtle task-detail-note">{{ t.task_detail_note }}</p>
           </div>
         </div>
         <div class="detail-layout">
@@ -557,6 +558,23 @@
             <p>{{ t.docs_intro_desc }}</p>
           </div>
           <div class="doc-block">
+            <h3>{{ t.docs_deploy_title }}</h3>
+            <p>{{ t.docs_deploy_desc }}</p>
+            <h4>{{ t.docs_local_deploy_title }}</h4>
+            <pre class="doc-pre">python -m pip install -r web_console/requirements.txt
+uvicorn web_console.app:app --host 0.0.0.0 --port 8000</pre>
+            <h4>{{ t.docs_compose_deploy_title }}</h4>
+            <pre class="doc-pre">docker compose up -d --build</pre>
+          </div>
+          <div class="doc-block">
+            <h3>{{ t.docs_api_flow_title }}</h3>
+            <p>{{ t.docs_api_flow_desc }}</p>
+            <pre class="doc-pre">{{ t.docs_flow_1 }}
+{{ t.docs_flow_2 }}
+{{ t.docs_flow_3 }}
+{{ t.docs_flow_4 }}</pre>
+          </div>
+          <div class="doc-block">
             <h3>{{ t.docs_endpoints_title }}</h3>
             <table class="doc-table">
               <thead>
@@ -689,6 +707,18 @@ Authorization: Bearer YOUR_API_KEY</pre>
       <div class="entity-actions"></div>
     </article>
   </template>
+
+  <div id="action-modal" class="modal-shell" hidden>
+    <div class="modal-backdrop" data-modal-close></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="action-modal-title">
+      <h3 id="action-modal-title"></h3>
+      <p id="action-modal-message" class="subtle"></p>
+      <div class="modal-actions">
+        <button type="button" id="action-modal-cancel" class="ghost-btn"></button>
+        <button type="button" id="action-modal-confirm"></button>
+      </div>
+    </div>
+  </div>
 
   <script>
     window.__APP_CONFIG__ = {

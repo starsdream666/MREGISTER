@@ -21,7 +21,13 @@ const sectionIndicator = document.getElementById('section-indicator');
 const sidebarToggle = document.getElementById('sidebar-toggle');
 const mobileNavButton = document.getElementById('mobile-nav-btn');
 const sidebarOverlay = document.getElementById('sidebar-overlay');
+const actionModal = document.getElementById('action-modal');
+const actionModalTitle = document.getElementById('action-modal-title');
+const actionModalMessage = document.getElementById('action-modal-message');
+const actionModalConfirm = document.getElementById('action-modal-confirm');
+const actionModalCancel = document.getElementById('action-modal-cancel');
 const SIDEBAR_STORAGE_KEY = 'mregister-sidebar-collapsed';
+let actionModalResolver = null;
 
 function tr(key, vars = {}) {
   let value = T[key] || key;
@@ -149,6 +155,78 @@ async function api(path, options = {}) {
 
   const contentType = response.headers.get('content-type') || '';
   return contentType.includes('application/json') ? response.json() : response;
+}
+
+function setButtonBusy(button, busy) {
+  if (!button) {
+    return;
+  }
+  button.classList.toggle('is-busy', busy);
+  button.disabled = busy;
+  button.setAttribute('aria-busy', busy ? 'true' : 'false');
+}
+
+async function runWithBusyButton(button, action) {
+  setButtonBusy(button, true);
+  try {
+    return await action();
+  } finally {
+    if (button && document.body.contains(button)) {
+      setButtonBusy(button, false);
+    }
+  }
+}
+
+function getSubmitButton(form, submitter = null) {
+  if (submitter instanceof HTMLButtonElement) {
+    return submitter;
+  }
+  return form.querySelector('button[type="submit"]');
+}
+
+function closeActionModal(result = false) {
+  if (!actionModal || actionModal.hidden) {
+    return;
+  }
+  actionModal.hidden = true;
+  document.body.style.overflow = '';
+  const resolve = actionModalResolver;
+  actionModalResolver = null;
+  if (resolve) {
+    resolve(result);
+  }
+}
+
+function openActionModal({ title, message, confirmLabel, cancelLabel }) {
+  if (!actionModal) {
+    return Promise.resolve(false);
+  }
+  if (actionModalResolver) {
+    closeActionModal(false);
+  }
+  actionModalTitle.textContent = title;
+  actionModalMessage.textContent = message;
+  actionModalConfirm.textContent = confirmLabel;
+  actionModalCancel.textContent = cancelLabel;
+  actionModal.hidden = false;
+  document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => actionModalConfirm.focus());
+  return new Promise((resolve) => {
+    actionModalResolver = resolve;
+  });
+}
+
+if (actionModal) {
+  actionModalConfirm.addEventListener('click', () => closeActionModal(true));
+  actionModalCancel.addEventListener('click', () => closeActionModal(false));
+  actionModal.querySelectorAll('[data-modal-close]').forEach((node) => {
+    node.addEventListener('click', () => closeActionModal(false));
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !actionModal.hidden) {
+      closeActionModal(false);
+    }
+  });
 }
 
 function formToObject(form) {
@@ -286,25 +364,29 @@ function renderCredentialsList() {
     setDefaultButton.type = 'button';
     setDefaultButton.textContent = isDefault ? tr('current_default') : tr('set_default');
     setDefaultButton.disabled = isDefault;
-    setDefaultButton.addEventListener('click', async () => {
-      if (item.kind === 'gptmail') {
-        await saveDefaults({ default_gptmail_credential_id: item.id });
-      } else {
-        await saveDefaults({ default_yescaptcha_credential_id: item.id });
-      }
-      await refreshState();
+    setDefaultButton.addEventListener('click', async (event) => {
+      await runWithBusyButton(event.currentTarget, async () => {
+        if (item.kind === 'gptmail') {
+          await saveDefaults({ default_gptmail_credential_id: item.id });
+        } else {
+          await saveDefaults({ default_yescaptcha_credential_id: item.id });
+        }
+        await refreshState();
+      });
     });
 
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
     deleteButton.className = 'danger';
     deleteButton.textContent = tr('delete');
-    deleteButton.addEventListener('click', async () => {
+    deleteButton.addEventListener('click', async (event) => {
       if (!window.confirm(tr('delete_credential_confirm', { name: item.name }))) {
         return;
       }
-      await api(`/api/credentials/${item.id}`, { method: 'DELETE' });
-      await refreshState();
+      await runWithBusyButton(event.currentTarget, async () => {
+        await api(`/api/credentials/${item.id}`, { method: 'DELETE' });
+        await refreshState();
+      });
     });
 
     actions.append(setDefaultButton, deleteButton);
@@ -335,21 +417,25 @@ function renderProxyList() {
     setDefaultButton.type = 'button';
     setDefaultButton.textContent = isDefault ? tr('current_default') : tr('set_default');
     setDefaultButton.disabled = isDefault;
-    setDefaultButton.addEventListener('click', async () => {
-      await saveDefaults({ default_proxy_id: item.id });
-      await refreshState();
+    setDefaultButton.addEventListener('click', async (event) => {
+      await runWithBusyButton(event.currentTarget, async () => {
+        await saveDefaults({ default_proxy_id: item.id });
+        await refreshState();
+      });
     });
 
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
     deleteButton.className = 'danger';
     deleteButton.textContent = tr('delete');
-    deleteButton.addEventListener('click', async () => {
+    deleteButton.addEventListener('click', async (event) => {
       if (!window.confirm(tr('delete_proxy_confirm', { name: item.name }))) {
         return;
       }
-      await api(`/api/proxies/${item.id}`, { method: 'DELETE' });
-      await refreshState();
+      await runWithBusyButton(event.currentTarget, async () => {
+        await api(`/api/proxies/${item.id}`, { method: 'DELETE' });
+        await refreshState();
+      });
     });
 
     actions.append(setDefaultButton, deleteButton);
@@ -422,10 +508,12 @@ function renderTaskDetail() {
   stopButton.type = 'button';
   stopButton.textContent = tr('stop_task');
   stopButton.disabled = !['queued', 'running', 'stopping'].includes(task.status);
-  stopButton.addEventListener('click', async () => {
+  stopButton.addEventListener('click', async (event) => {
     try {
-      await api(`/api/tasks/${task.id}/stop`, { method: 'POST' });
-      await refreshState();
+      await runWithBusyButton(event.currentTarget, async () => {
+        await api(`/api/tasks/${task.id}/stop`, { method: 'POST' });
+        await refreshState();
+      });
     } catch (error) {
       window.alert(error.message);
     }
@@ -444,14 +532,16 @@ function renderTaskDetail() {
   deleteButton.className = 'danger';
   deleteButton.textContent = tr('delete_task');
   deleteButton.disabled = ['queued', 'running', 'stopping'].includes(task.status);
-  deleteButton.addEventListener('click', async () => {
+  deleteButton.addEventListener('click', async (event) => {
     if (!window.confirm(tr('delete_task_confirm', { id: task.id }))) {
       return;
     }
     try {
-      await api(`/api/tasks/${task.id}`, { method: 'DELETE' });
-      state.selectedTaskId = null;
-      await refreshState();
+      await runWithBusyButton(event.currentTarget, async () => {
+        await api(`/api/tasks/${task.id}`, { method: 'DELETE' });
+        state.selectedTaskId = null;
+        await refreshState();
+      });
     } catch (error) {
       window.alert(error.message);
     }
@@ -486,19 +576,23 @@ function renderSchedules() {
   `).join('') : `<p class="empty">${tr('empty_schedules')}</p>`;
 
   wrap.querySelectorAll('[data-toggle]').forEach((button) => {
-    button.addEventListener('click', async () => {
-      await api(`/api/schedules/${button.dataset.toggle}/toggle`, { method: 'POST' });
-      await refreshState();
+    button.addEventListener('click', async (event) => {
+      await runWithBusyButton(event.currentTarget, async () => {
+        await api(`/api/schedules/${button.dataset.toggle}/toggle`, { method: 'POST' });
+        await refreshState();
+      });
     });
   });
 
   wrap.querySelectorAll('[data-delete]').forEach((button) => {
-    button.addEventListener('click', async () => {
+    button.addEventListener('click', async (event) => {
       if (!window.confirm(tr('delete_schedule_confirm'))) {
         return;
       }
-      await api(`/api/schedules/${button.dataset.delete}`, { method: 'DELETE' });
-      await refreshState();
+      await runWithBusyButton(event.currentTarget, async () => {
+        await api(`/api/schedules/${button.dataset.delete}`, { method: 'DELETE' });
+        await refreshState();
+      });
     });
   });
 }
@@ -519,12 +613,14 @@ function renderApiKeys() {
   `).join('') : `<p class="empty">${tr('empty_api_keys')}</p>`;
 
   wrap.querySelectorAll('[data-id]').forEach((button) => {
-    button.addEventListener('click', async () => {
+    button.addEventListener('click', async (event) => {
       if (!window.confirm(tr('delete_api_key_confirm'))) {
         return;
       }
-      await api(`/api/api-keys/${button.dataset.id}`, { method: 'DELETE' });
-      await refreshState();
+      await runWithBusyButton(event.currentTarget, async () => {
+        await api(`/api/api-keys/${button.dataset.id}`, { method: 'DELETE' });
+        await refreshState();
+      });
     });
   });
 }
@@ -600,9 +696,11 @@ if (taskFilterStatus) {
 
 const logoutButton = document.getElementById('logout-btn');
 if (logoutButton) {
-  logoutButton.addEventListener('click', async () => {
-    await api('/api/auth/logout', { method: 'POST' });
-    window.location.reload();
+  logoutButton.addEventListener('click', async (event) => {
+    await runWithBusyButton(event.currentTarget, async () => {
+      await api('/api/auth/logout', { method: 'POST' });
+      window.location.reload();
+    });
   });
 }
 
@@ -610,12 +708,16 @@ const defaultsForm = document.getElementById('defaults-form');
 if (defaultsForm) {
   defaultsForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const payload = formToObject(event.currentTarget);
-    ['default_gptmail_credential_id', 'default_yescaptcha_credential_id', 'default_proxy_id'].forEach((key) => {
-      payload[key] = payload[key] ? Number(payload[key]) : null;
+    const form = event.currentTarget;
+    const submitButton = getSubmitButton(form, event.submitter);
+    await runWithBusyButton(submitButton, async () => {
+      const payload = formToObject(form);
+      ['default_gptmail_credential_id', 'default_yescaptcha_credential_id', 'default_proxy_id'].forEach((key) => {
+        payload[key] = payload[key] ? Number(payload[key]) : null;
+      });
+      await api('/api/defaults', { method: 'POST', body: JSON.stringify(payload) });
+      await refreshState();
     });
-    await api('/api/defaults', { method: 'POST', body: JSON.stringify(payload) });
-    await refreshState();
   });
 }
 
@@ -623,10 +725,14 @@ const credentialForm = document.getElementById('credential-form');
 if (credentialForm) {
   credentialForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    await api('/api/credentials', { method: 'POST', body: JSON.stringify(formToObject(event.currentTarget)) });
-    event.currentTarget.reset();
-    syncCredentialForm();
-    await refreshState();
+    const form = event.currentTarget;
+    const submitButton = getSubmitButton(form, event.submitter);
+    await runWithBusyButton(submitButton, async () => {
+      await api('/api/credentials', { method: 'POST', body: JSON.stringify(formToObject(form)) });
+      form.reset();
+      syncCredentialForm();
+      await refreshState();
+    });
   });
 }
 
@@ -634,9 +740,13 @@ const proxyForm = document.getElementById('proxy-form');
 if (proxyForm) {
   proxyForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    await api('/api/proxies', { method: 'POST', body: JSON.stringify(formToObject(event.currentTarget)) });
-    event.currentTarget.reset();
-    await refreshState();
+    const form = event.currentTarget;
+    const submitButton = getSubmitButton(form, event.submitter);
+    await runWithBusyButton(submitButton, async () => {
+      await api('/api/proxies', { method: 'POST', body: JSON.stringify(formToObject(form)) });
+      form.reset();
+      await refreshState();
+    });
   });
 }
 
@@ -644,21 +754,31 @@ const taskForm = document.getElementById('task-form');
 if (taskForm) {
   taskForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const payload = formToObject(event.currentTarget);
-    payload.quantity = Number(payload.quantity);
-    payload.concurrency = Number(payload.concurrency || 1);
-    payload.email_credential_id = payload.email_credential_id ? Number(payload.email_credential_id) : null;
-    payload.captcha_credential_id = payload.captcha_credential_id ? Number(payload.captcha_credential_id) : null;
-    payload.proxy_id = payload.proxy_id ? Number(payload.proxy_id) : null;
+    const form = event.currentTarget;
+    const submitButton = getSubmitButton(form, event.submitter);
+    await runWithBusyButton(submitButton, async () => {
+      const payload = formToObject(form);
+      payload.quantity = Number(payload.quantity);
+      payload.concurrency = Number(payload.concurrency || 1);
+      payload.email_credential_id = payload.email_credential_id ? Number(payload.email_credential_id) : null;
+      payload.captcha_credential_id = payload.captcha_credential_id ? Number(payload.captcha_credential_id) : null;
+      payload.proxy_id = payload.proxy_id ? Number(payload.proxy_id) : null;
 
-    const result = await api('/api/tasks', { method: 'POST', body: JSON.stringify(payload) });
-    await refreshState();
+      const result = await api('/api/tasks', { method: 'POST', body: JSON.stringify(payload) });
+      await refreshState();
 
-    if (window.confirm(tr('created_task_confirm', { id: result.id }))) {
-      state.selectedTaskId = Number(result.id);
-      showSection('task-detail');
-      renderTaskDetail();
-    }
+      const shouldOpenTask = await openActionModal({
+        title: tr('created_task_modal_title'),
+        message: tr('created_task_confirm', { id: result.id }),
+        confirmLabel: tr('created_task_modal_confirm'),
+        cancelLabel: tr('created_task_modal_cancel'),
+      });
+      if (shouldOpenTask) {
+        state.selectedTaskId = Number(result.id);
+        showSection('task-detail');
+        renderTaskDetail();
+      }
+    });
   });
 }
 
@@ -667,14 +787,17 @@ if (scheduleForm) {
   scheduleForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
-    const payload = formToObject(form);
-    payload.quantity = Number(payload.quantity);
-    payload.concurrency = Number(payload.concurrency || 1);
-    payload.use_proxy = new FormData(form).get('use_proxy') === 'on';
-    payload.enabled = true;
-    await api('/api/schedules', { method: 'POST', body: JSON.stringify(payload) });
-    form.reset();
-    await refreshState();
+    const submitButton = getSubmitButton(form, event.submitter);
+    await runWithBusyButton(submitButton, async () => {
+      const payload = formToObject(form);
+      payload.quantity = Number(payload.quantity);
+      payload.concurrency = Number(payload.concurrency || 1);
+      payload.use_proxy = new FormData(form).get('use_proxy') === 'on';
+      payload.enabled = true;
+      await api('/api/schedules', { method: 'POST', body: JSON.stringify(payload) });
+      form.reset();
+      await refreshState();
+    });
   });
 }
 
@@ -682,15 +805,19 @@ const apiKeyForm = document.getElementById('api-key-form');
 if (apiKeyForm) {
   apiKeyForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const result = await api('/api/api-keys', { method: 'POST', body: JSON.stringify(formToObject(event.currentTarget)) });
-    document.getElementById('api-key-created').innerHTML = `
-      <div class="flash-key">
-        <strong>${tr('save_now')}</strong>
-        <code>${result.api_key}</code>
-      </div>
-    `;
-    event.currentTarget.reset();
-    await refreshState();
+    const form = event.currentTarget;
+    const submitButton = getSubmitButton(form, event.submitter);
+    await runWithBusyButton(submitButton, async () => {
+      const result = await api('/api/api-keys', { method: 'POST', body: JSON.stringify(formToObject(form)) });
+      document.getElementById('api-key-created').innerHTML = `
+        <div class="flash-key">
+          <strong>${tr('save_now')}</strong>
+          <code>${result.api_key}</code>
+        </div>
+      `;
+      form.reset();
+      await refreshState();
+    });
   });
 }
 
