@@ -118,16 +118,17 @@ button, input, select, textarea { font: inherit; }
   min-width: 0;
   gap: 14px;
   overflow: hidden;
+  min-height: 34px;
 }
 
 .brand-logo-wrap {
-  width: 46px;
-  height: 46px;
-  padding: 6px;
-  border-radius: 16px;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  padding: 4px;
+  border-radius: 12px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.7);
-  box-shadow: 0 16px 28px rgba(40, 30, 10, 0.1);
+  background: rgba(18, 108, 82, 0.08);
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -144,7 +145,7 @@ button, input, select, textarea { font: inherit; }
   min-width: 0;
   max-width: 180px;
   overflow: hidden;
-  transition: max-width 0.28s ease, opacity 0.2s ease, transform 0.28s ease;
+  transition: max-width 0.28s ease, opacity 0.2s ease;
 }
 
 .brand-copy h1 { font-size: 24px; line-height: 1; }
@@ -248,7 +249,7 @@ button, input, select, textarea { font: inherit; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: max-width 0.28s ease, opacity 0.18s ease, transform 0.28s ease;
+  transition: max-width 0.28s ease, opacity 0.18s ease;
 }
 
 .nav-btn.active {
@@ -267,13 +268,12 @@ button, input, select, textarea { font: inherit; }
 .nav-btn:hover:not(:disabled) .nav-btn__icon,
 .sidebar-logout:hover:not(:disabled) .nav-btn__icon,
 .sidebar-footer-toggle:hover:not(:disabled) .nav-btn__icon {
-  transform: translateX(1px);
+  transform: none;
 }
 
 .admin-shell.sidebar-collapsed .brand-copy {
   max-width: 0;
   opacity: 0;
-  transform: translateX(-8px);
 }
 
 .admin-shell.sidebar-collapsed .sidebar-top,
@@ -293,7 +293,6 @@ button, input, select, textarea { font: inherit; }
 .admin-shell.sidebar-collapsed .nav-btn__label {
   max-width: 0;
   opacity: 0;
-  transform: translateX(-8px);
 }
 
 .admin-shell.sidebar-collapsed .nav-btn,
