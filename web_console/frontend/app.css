@@ -123,10 +123,13 @@ button, input, select, textarea { font: inherit; }
 .brand-logo-wrap {
   width: 46px;
   height: 46px;
+  padding: 6px;
   border-radius: 16px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.7);
   box-shadow: 0 16px 28px rgba(40, 30, 10, 0.1);
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
 }
 
@@ -134,7 +137,7 @@ button, input, select, textarea { font: inherit; }
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .brand-copy {

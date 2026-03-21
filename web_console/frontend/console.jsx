@@ -1564,7 +1564,6 @@ Authorization: Bearer YOUR_API_KEY`,
                 <img className="brand-logo" src={SIDEBAR_LOGO_SRC} alt={tr('brand_name')} />
               </div>
               <div className="brand-copy">
-                <p className="eyebrow">{tr('brand_console')}</p>
                 <h1>{tr('brand_name')}</h1>
               </div>
             </div>
