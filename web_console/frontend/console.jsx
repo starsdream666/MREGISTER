@@ -367,6 +367,7 @@ export function ConsoleApp() {
     concurrency: '1',
     time_of_day: '',
     use_proxy: false,
+    auto_import_cpamc: false,
   });
   const [cpamcDraft, setCpamcDraft] = useState({
     enabled: false,
@@ -374,6 +375,7 @@ export function ConsoleApp() {
     management_key: '',
     linked: false,
     last_error: '',
+    auto_import_enabled: false,
   });
   const [cpamcDirty, setCpamcDirty] = useState(false);
   const [apiKeyName, setApiKeyName] = useState('');
@@ -460,6 +462,7 @@ export function ConsoleApp() {
         management_key: payload.cpamc?.management_key || '',
         linked: Boolean(payload.cpamc?.linked),
         last_error: payload.cpamc?.last_error || '',
+        auto_import_enabled: Boolean(payload.cpamc?.auto_import_enabled),
       });
     }
     setTaskDraft((current) => normalizeTaskDraft(initial ? initialTaskDraft(payload.platforms) : current, payload.platforms, payload.credentials, payload.proxies));
@@ -627,6 +630,7 @@ export function ConsoleApp() {
         concurrency: '1',
         time_of_day: '',
         use_proxy: false,
+        auto_import_cpamc: false,
       });
       await refreshState();
     });
@@ -642,6 +646,7 @@ export function ConsoleApp() {
             enabled: cpamcDraft.enabled,
             base_url: cpamcDraft.base_url,
             management_key: cpamcDraft.management_key,
+            auto_import_enabled: cpamcDraft.auto_import_enabled,
           }),
         });
         setCpamcDirty(false);
@@ -661,6 +666,7 @@ export function ConsoleApp() {
             enabled: cpamcDraft.enabled,
             base_url: cpamcDraft.base_url,
             management_key: cpamcDraft.management_key,
+            auto_import_enabled: cpamcDraft.auto_import_enabled,
           }),
         });
         setCpamcDirty(false);
@@ -782,6 +788,32 @@ export function ConsoleApp() {
         setLoadError(error.message);
       }
     });
+  }
+
+  function getTodayDateKey() {
+    const value = new Date();
+    const year = String(value.getFullYear());
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function getScheduleTaskSummary(task) {
+    if (!task || task.source !== 'schedule' || !task.schedule_id) {
+      return null;
+    }
+    const scheduleId = Number(task.schedule_id);
+    const schedule = statePayload.schedules.find((item) => Number(item.id) === scheduleId);
+    if (!schedule) {
+      return null;
+    }
+    const relatedTasks = statePayload.tasks.filter((item) => Number(item.schedule_id) === scheduleId);
+    const todayTask = relatedTasks.find((item) => String(item.created_at || '').startsWith(getTodayDateKey())) || null;
+    return {
+      schedule,
+      completedRuns: relatedTasks.filter((item) => item.status === 'completed').length,
+      todayTask,
+    };
   }
 
   async function handleToggleSchedule(item) {
@@ -1133,6 +1165,7 @@ export function ConsoleApp() {
   }
 
   function renderTaskDetail() {
+    const scheduleSummary = visibleTask ? getScheduleTaskSummary(visibleTask) : null;
     return (
       <section className="section-card active">
         <p className="subtle task-detail-note content-section-note">{tr('task_detail_note')}</p>
@@ -1174,8 +1207,8 @@ export function ConsoleApp() {
           <article className="panel task-detail-panel">
             {visibleTask ? (
               <>
-                <div className="task-detail-header">
-                  <div>
+                <div className={`task-detail-header ${scheduleSummary ? 'task-detail-header--split' : ''}`.trim()}>
+                  <div className="task-detail-header-main">
                     <h3>{getTaskDisplayName(visibleTask)} (#{visibleTask.id})</h3>
                     <p className="meta">{tr('task_header_meta', {
                       platform: visibleTask.platform,
@@ -1184,6 +1217,19 @@ export function ConsoleApp() {
                       status: statusLabel(visibleTask.status),
                     })}</p>
                   </div>
+                  {scheduleSummary ? (
+                    <aside className="schedule-summary-card">
+                      <strong>{tr('schedule_detail_title')}</strong>
+                      <p className="meta">{scheduleSummary.schedule.name}</p>
+                      <div className="schedule-summary-list">
+                        <span>{scheduleSummary.schedule.platform}</span>
+                        <span>{tr('schedule_target_quantity', { value: scheduleSummary.todayTask?.quantity ?? scheduleSummary.schedule.quantity })}</span>
+                        <span>{tr('schedule_completed_quantity', { value: scheduleSummary.todayTask?.results_count ?? 0 })}</span>
+                        <span>{tr('schedule_today_status', { value: scheduleSummary.todayTask ? statusLabel(scheduleSummary.todayTask.status) : tr('schedule_today_none') })}</span>
+                        <span>{tr('schedule_completed_runs', { value: scheduleSummary.completedRuns })}</span>
+                      </div>
+                    </aside>
+                  ) : null}
                 </div>
                 <div className="task-actions">
                   <BusyButton type="button" busy={isBusy(`task-stop-${visibleTask.id}`)} disabled={!['queued', 'running', 'stopping'].includes(visibleTask.status)} onClick={() => handleStopTask(visibleTask)}>{tr('stop_task')}</BusyButton>
@@ -1257,6 +1303,10 @@ export function ConsoleApp() {
                 <input type="checkbox" checked={scheduleDraft.use_proxy} onChange={(event) => setScheduleDraft((current) => ({ ...current, use_proxy: event.target.checked }))} />
                 <span>{tr('field_use_default_proxy')}</span>
               </label>
+              <label className="checkbox-row field-card field-card--checkbox">
+                <input type="checkbox" checked={scheduleDraft.auto_import_cpamc} onChange={(event) => setScheduleDraft((current) => ({ ...current, auto_import_cpamc: event.target.checked }))} />
+                <span>{tr('field_schedule_auto_import_cpamc')}</span>
+              </label>
               <BusyButton type="submit" busy={isBusy('schedule-save')}>{tr('save_schedule')}</BusyButton>
             </form>
           </article>
@@ -1279,6 +1329,7 @@ export function ConsoleApp() {
                       enabled: item.enabled ? tr('enable') : tr('disable'),
                     })}</p>
                     <p className="notes">{item.use_proxy ? tr('schedule_proxy_on') : tr('schedule_proxy_off')}</p>
+                    <p className="notes">{item.auto_import_cpamc ? tr('schedule_cpamc_auto_import_on') : tr('schedule_cpamc_auto_import_off')}</p>
                   </div>
                   <div className="entity-actions">
                     <BusyButton type="button" busy={isBusy(`schedule-toggle-${item.id}`)} onClick={() => handleToggleSchedule(item)}>{item.enabled ? tr('disable') : tr('enable')}</BusyButton>
@@ -1332,6 +1383,21 @@ export function ConsoleApp() {
             </div>
           </div>
           <form className="stack" onSubmit={handleCpamcSave}>
+            <label className="checkbox-row field-card field-card--checkbox">
+              <input
+                type="checkbox"
+                checked={cpamcDraft.auto_import_enabled}
+                onChange={(event) => {
+                  setCpamcDirty(true);
+                  setCpamcDraft((current) => ({
+                    ...current,
+                    auto_import_enabled: event.target.checked,
+                  }));
+                }}
+              />
+              <span>{tr('field_cpamc_auto_import')}</span>
+            </label>
+            <p className="field-tip">{tr('cpamc_auto_import_hint')}</p>
             <label className="field-card">
               <span>{tr('field_cpamc_base_url')}</span>
               <input
