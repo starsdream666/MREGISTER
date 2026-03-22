@@ -26,6 +26,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
+from chatgpt_register_v2.lib.proxy_utils import normalize_proxy_url
+
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 WEB_DIR = Path(__file__).resolve().parent
@@ -1026,11 +1028,11 @@ def resolve_proxy_value(proxy_mode: str, proxy_id: int | None) -> str | None:
         selected = defaults["default_proxy_id"]
         if selected is None:
             raise HTTPException(status_code=400, detail="No default proxy is configured")
-        return str(get_proxy(int(selected))["proxy_url"])
+        return normalize_proxy_url(get_proxy(int(selected))["proxy_url"])
     if mode == "custom":
         if proxy_id is None:
             raise HTTPException(status_code=400, detail="A proxy must be selected")
-        return str(get_proxy(proxy_id)["proxy_url"])
+        return normalize_proxy_url(get_proxy(proxy_id)["proxy_url"])
     raise HTTPException(status_code=400, detail="Unsupported proxy mode")
 
 
@@ -1870,6 +1872,7 @@ async def delete_credential(credential_id: int, request: Request) -> JSONRespons
 async def create_proxy(payload: ProxyCreate, request: Request) -> JSONResponse:
     require_authenticated(request)
     timestamp = now_iso()
+    proxy_url = normalize_proxy_url(payload.proxy_url)
     proxy_id = execute(
         """
         INSERT INTO proxies (name, proxy_url, notes, created_at, updated_at)
@@ -1877,7 +1880,7 @@ async def create_proxy(payload: ProxyCreate, request: Request) -> JSONResponse:
         """,
         (
             payload.name.strip(),
-            payload.proxy_url.strip(),
+            proxy_url,
             (payload.notes or "").strip() or None,
             timestamp,
             timestamp,

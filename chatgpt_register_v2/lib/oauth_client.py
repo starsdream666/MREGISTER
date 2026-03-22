@@ -12,6 +12,7 @@ except ImportError:
     import requests as curl_requests
 
 from .utils import generate_pkce, generate_datadog_trace
+from .proxy_utils import normalize_proxy_url
 from .sentinel_token import build_sentinel_token
 
 
@@ -30,7 +31,7 @@ class OAuthClient:
         self.oauth_issuer = config.get("oauth_issuer", "https://auth.openai.com")
         self.oauth_client_id = config.get("oauth_client_id", "app_EMoamEEZ73f0CkXaXp7hrann")
         self.oauth_redirect_uri = config.get("oauth_redirect_uri", "http://localhost:1455/auth/callback")
-        self.proxy = proxy
+        self.proxy = normalize_proxy_url(proxy)
         self.verbose = verbose
         
         # 创建 session

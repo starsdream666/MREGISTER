@@ -15,6 +15,7 @@ from urllib.parse import urlencode
 import requests
 
 from .gptmail_client import GPTMailAPIError, GPTMailClient, extract_email_id, iter_strings
+from .proxy_utils import normalize_proxy_url
 
 
 def _first_text(*values: object, default: str = "") -> str:
@@ -51,8 +52,9 @@ def _int_value(*values: object, default: int) -> int:
 
 def _build_session(proxy: str | None = None) -> requests.Session:
     session = requests.Session()
-    if proxy:
-        session.proxies = {"http": proxy, "https": proxy}
+    normalized_proxy = normalize_proxy_url(proxy)
+    if normalized_proxy:
+        session.proxies = {"http": normalized_proxy, "https": normalized_proxy}
     return session
 
 

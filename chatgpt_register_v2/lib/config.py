@@ -5,6 +5,8 @@
 import os
 import json
 
+from .proxy_utils import normalize_proxy_url
+
 
 def load_config():
     """从 config.json 加载配置，环境变量优先级更高"""
@@ -99,6 +101,7 @@ def load_config():
             else:
                 config[config_key] = env_value
 
+    config["proxy"] = normalize_proxy_url(config.get("proxy"))
     return config
 
 

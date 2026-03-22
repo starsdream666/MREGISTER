@@ -53,7 +53,7 @@
 ## 安装依赖
 
 ```bash
-pip install curl_cffi
+pip install curl_cffi requests PySocks
 ```
 
 ## 配置说明
@@ -111,7 +111,8 @@ pip install curl_cffi
 
 5. **proxy**：
    - 代理地址（可选）
-   - 格式：`http://host:port` 或 `socks5://host:port`
+   - 格式：`http://host:port`、`socks5://host:port` 或 `socks5://user:pass@host:port`
+   - SOCKS5 代理会自动按 `socks5h://` 方式处理，域名解析走代理端
 
 6. **enable_oauth** 和 **oauth_required**：
    - `enable_oauth`: 是否启用 OAuth 登录
