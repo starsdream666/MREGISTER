@@ -1869,6 +1869,7 @@ async def index(request: Request) -> HTMLResponse:
     elif not is_authenticated_request(request):
         auth_view = "login"
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
             "request": request,
